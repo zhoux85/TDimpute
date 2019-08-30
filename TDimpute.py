@@ -209,7 +209,10 @@ DNA_size = 27717
 sample_size = 5
 loss_list = np.zeros([16, 5, sample_size]);
 loss_summary = np.zeros([16, 5])
+loss_list_pretrain = np.zeros([16, 5, sample_size]);
+loss_summary_pretrain = np.zeros([16, 5])
 cancer_c = 0
+
 for cancertype in cancer_names:
     perc = 0
     save_ckpt = True #for each cancer, only one general model trained on 32 cancer datasets need to be saved
