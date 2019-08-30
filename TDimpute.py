@@ -13,7 +13,7 @@ def get_next_batch(dataset1, batch_size_1, step, ind):
     return newdataset1
 
 
-def train(drop_prob, source_data, dataset_train, dataset_test, sav=True, checkpoint_file='default.ckpt'):
+def train(drop_prob, source_data, dataset_train, dataset_test, sav=True,scale, checkpoint_file='default.ckpt'):
     target_data = dataset_train
     dataset_train = source_data
     input_image = tf.placeholder(tf.float32, batch_shape_input, name='input_image')
@@ -242,7 +242,7 @@ for cancertype in cancer_names:
             batch_shape_output = (None, RNA_size)
             tf.reset_default_graph()
             loss_val_list_train, loss_val_list_test, loss_test,loss_test_pretrain, reconstruct = train(drop_prob, source_data.values, train_data, test_data,
-                                                                                    sav=save_ckpt, checkpoint_file=datadir +"/checkpoints/general_model_for_"+ cancertype+'.ckpt')
+                                                                                    sav=save_ckpt, scale, checkpoint_file=datadir +"/checkpoints/general_model_for_"+ cancertype+'.ckpt')
 
             save_ckpt = False
             imputed_data = np.concatenate([reconstruct*scale, train_data[:, :RNA_size]*scale], axis=0)
