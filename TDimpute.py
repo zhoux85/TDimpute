@@ -80,7 +80,7 @@ def train(drop_prob, source_data, dataset_train, dataset_test, sav=True, checkpo
                     reconstruct = session.run(reconstructed_image,
                                               feed_dict={input_image: dataset_test[:, RNA_size:], is_training: False})
                     nz = dataset_test[:, :RNA_size].shape[0] * dataset_test[:, :RNA_size].shape[1]
-                    diff_mat = ((reconstruct - dataset_test[:, :RNA_size]) * 16.5) ** 2
+                    diff_mat = ((reconstruct - dataset_test[:, :RNA_size]) * scale) ** 2
                     loss_test = np.sqrt(np.sum(diff_mat) / nz)
 
                     print('RMSE loss at pretrain: ', step, "/", num_iters,
@@ -101,7 +101,7 @@ def train(drop_prob, source_data, dataset_train, dataset_test, sav=True, checkpo
         reconstruct = session.run(reconstructed_image,
                                   feed_dict={input_image: dataset_test[:, RNA_size:], is_training: False})
         nz = dataset_test[:, :RNA_size].shape[0] * dataset_test[:, :RNA_size].shape[1]
-        diff_mat = ((reconstruct - dataset_test[:, :RNA_size]) * 16.5) ** 2
+        diff_mat = ((reconstruct - dataset_test[:, :RNA_size]) * scale) ** 2
         loss_test_pretrain = np.sqrt(np.sum(diff_mat) / nz)
         print('RMSE loss at pretrain: ', loss_test_pretrain)
 
@@ -146,7 +146,7 @@ def train(drop_prob, source_data, dataset_train, dataset_test, sav=True, checkpo
                 reconstruct = session.run(reconstructed_image,
                                           feed_dict={input_image: dataset_test[:, RNA_size:], is_training: False})
                 nz = dataset_test[:, :RNA_size].shape[0] * dataset_test[:, :RNA_size].shape[1]
-                diff_mat = ((reconstruct - dataset_test[:, :RNA_size]) * 16.5) ** 2
+                diff_mat = ((reconstruct - dataset_test[:, :RNA_size]) * scale) ** 2
                 loss_test = np.sqrt(np.sum(diff_mat) / nz)
 
                 print('RMSE loss by train_data_size: ', step, "/", num_iters,
@@ -170,7 +170,7 @@ def train(drop_prob, source_data, dataset_train, dataset_test, sav=True, checkpo
         reconstruct = session.run(reconstructed_image,
                                   feed_dict={input_image: dataset_test[:, RNA_size:], is_training: False})
         nz = dataset_test[:, :RNA_size].shape[0] * dataset_test[:, :RNA_size].shape[1]
-        diff_mat = ((reconstruct - dataset_test[:, :RNA_size]) * 16.5) ** 2
+        diff_mat = ((reconstruct - dataset_test[:, :RNA_size]) * scale) ** 2
         loss_test = np.sqrt(np.sum(diff_mat) / nz)
 
         print('RMSE loss by train_data_size: ', step, "/", num_iters, total_cost_train / (num_batchs * print_epochs),
@@ -203,6 +203,8 @@ cancer_names = [sys.argv[2]] #smaple size greater than 200
 # cancer_names = ['LUSC', 'KIRC', 'CESC', 'STAD', 'SARC', 'COAD','KIRP', 'LUAD', 'BLCA', 'BRCA','HNSC','LGG_','PRAD','THCA','SKCM', 'LIHC']
 full_dataset_path = sys.argv[3]
 imputed_dataset_path = sys.argv[4]
+RNA_size = 19027
+DNA_size = 27717
 
 sample_size = 5
 loss_list = np.zeros([16, 5, sample_size]);
@@ -220,7 +222,8 @@ for cancertype in cancer_names:
             print('name:', cancertype, ' missing rate:', missing_perc, ' data size:',shuffle_cancer.shape)
             ########################Create set for training and testing
             ## 16.5 is for gene expression normalization // linearly scaled to [0, 1], the same as the DNA methylation data (beta values)
-            aa = np.concatenate((shuffle_cancer.values[:, :19027] / 16.5, shuffle_cancer.values[:, 19027:]), axis=1)
+			scale = 16.5
+            aa = np.concatenate((shuffle_cancer.values[:, :RNA_size] / scale, shuffle_cancer.values[:, RNA_size:]), axis=1)
             shuffle_cancer = pd.DataFrame(aa, index=shuffle_cancer.index, columns=shuffle_cancer.columns)
             RDNA = shuffle_cancer.values
             test_data = RDNA[0:int(RDNA.shape[0] * missing_perc), :]
@@ -229,22 +232,22 @@ for cancertype in cancer_names:
 
             ## 32 cancer datasets are combined as source domain and the remaining one cancer is considered as target domain.
             source_data = RNA_DNA_txt[~RNA_DNA_txt.index.isin(shuffle_cancer.index)]  # bool index, e.g. df[df.A>0]
-            aa = np.concatenate((source_data.values[:, :19027] / 16.5, source_data.values[:, 19027:]), axis=1)
+            aa = np.concatenate((source_data.values[:, :RNA_size] / scale, source_data.values[:, RNA_size:]), axis=1)
             source_data = pd.DataFrame(aa, index=source_data.index, columns=source_data.columns)
 
             lr = 0.0001  # learning_rate = 0.1
             feature_size = RDNA.shape[1]  # 10595 #17176 #(8856, 109995)
             drop_prob = 0.
-            batch_shape_input = (None, 27717)  # (128, 11853)
-            batch_shape_output = (None, 19027)
+            batch_shape_input = (None, DNA_size)  # (128, 11853)
+            batch_shape_output = (None, RNA_size)
             tf.reset_default_graph()
             loss_val_list_train, loss_val_list_test, loss_test,loss_test_pretrain, reconstruct = train(drop_prob, source_data.values, train_data, test_data,
                                                                                     sav=save_ckpt, checkpoint_file=datadir +"/checkpoints/general_model_for_"+ cancertype+'.ckpt')
 
             save_ckpt = False
-            imputed_data = np.concatenate([reconstruct*16.5, train_data[:, :19027]*16.5], axis=0)
-            RNA_txt = pd.DataFrame(imputed_data[:, :19027], index=shuffle_cancer.index,
-                                   columns=shuffle_cancer.columns[:19027])
+            imputed_data = np.concatenate([reconstruct*scale, train_data[:, :RNA_size]*scale], axis=0)
+            RNA_txt = pd.DataFrame(imputed_data[:, :RNA_size], index=shuffle_cancer.index,
+                                   columns=shuffle_cancer.columns[:RNA_size])
             #RNA_txt.to_csv(datadir+'/imputed_data/TDimpute_'+cancertype+str(missing_perc*100)+'_'+str(sample_count)+'.csv')
             RNA_txt.to_csv(imputed_dataset_path)
 
@@ -262,8 +265,3 @@ for cancertype in cancer_names:
 print('RMSE by cancer (averaged by sampling times):')
 print(loss_summary)
 print(loss_summary_pretrain)
-
-
-
-
-
