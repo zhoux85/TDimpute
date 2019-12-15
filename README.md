@@ -3,15 +3,22 @@ TDimpute is designed to impute missing gene expression data from DNA methylation
 The method is still on progress. For any questions about the code or original datasets, please contact zhoux85@mail2.sysu.edu.cn
 
 # Requirements
-tensorflow 1.11.0, python 3.6.5
+tensorflow 1.11.0, python 3.6.5, preprocessCore 1.48.0
 
 # Data preparation
 RNA-seq data (UNC IlluminaHiSeq_RNASeqV2_RSEM), DNA methylation data (JHU-USC HumanMethylation450), downloaded from TCGA.
-To simulate omics missing dataset, we randomly select an increasing fraction (10%, 30%, 50%, 70%, 90%) of samples in the full dataset (gold standard) and remove their gene expression data. The samples with missing gene expression are set as testing dataset and the remaining samples with complete omics are set as training dataset. At each level of missing rate, we repeat this procedure 5 times to obtain a robust evaluation.
+
+We use the Wilms tumor dataset from TARGET cancer project as a example for imputing RNA-seq data using DNA methylation data. Note that the RNA-seq data should be quantified as RSEM estimated read counts, since we pretrained the neural network with the RNA-seq data of RNASeqV2_RSEM. The pretrained model with other quantification, such as readcounts, TPM, will be provided later.
 
 # Usage
-To run script and sample dataset:
+### quantile normalization
+quantile_normalization_process.R is used to remove technical variabilities between TCGA and the dataset you want to impute: specifically, the TCGA data is considered as reference to normalize the your dataset into the same distribution.  
+"reference_distribution_DNA_TCGA.RData" and "reference_distribution_RNA_TCGA.RData" are two processed files using funciton "normalize.quantiles.determine.target" in R package "preprocessCore". They can be loaded directly as reference distribution of DNA methylation and RNA-seq data from TCGA.
+
+### To run script and sample dataset:
 python TDimpute_without_transfer.py GPU_index cancer_name full_dataset_path imputed_dataset_path
 
-In the script TDimpute.py, RNA_DNA_combine.csv is a 33-cancer dataset including gene expression and DNA methylation data, and not uploaded due to size limitation.
+In the script TDimpute.py, RNA_DNA_combine.csv is a 33-cancer dataset downloaded from TCGA including gene expression and DNA methylation data.
+
+
 
