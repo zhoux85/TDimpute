@@ -12,7 +12,8 @@ We use the Wilms tumor dataset from TARGET cancer project as a example for imput
 
 # Usage
 ### quantile normalization
-quantile_normalization_process.R is used to remove technical variabilities between TCGA and the dataset you want to impute: specifically, the TCGA data is considered as reference to normalize the your dataset into the same distribution.  
+quantile_normalization_process.R is used to remove technical variabilities between TCGA and the dataset (outside TCGA) you want to impute: specifically, the TCGA data is considered as reference to normalize the your dataset into the same distribution.  
+"quantiles_DNA_TCGA_RSEM.csv" and "quantiles_RNA_TCGA_RSEM.csv" are two quantile normalized datasets, which can be used to pretrain the pancancer model on TCGA. For dataset outside TCGA, we recommend using these two percentile version data if the non-TCGA data is normalized by percentile ranking.
 "reference_distribution_DNA_TCGA.RData" and "reference_distribution_RNA_TCGA.RData" are two processed files using funciton "normalize.quantiles.determine.target" in R package "preprocessCore". They can be loaded directly as reference distribution of DNA methylation and RNA-seq data from TCGA.
 
 ### To run script and sample dataset:
