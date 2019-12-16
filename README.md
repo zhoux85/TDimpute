@@ -10,6 +10,8 @@ RNA-seq data (UNC IlluminaHiSeq_RNASeqV2_RSEM), DNA methylation data (JHU-USC Hu
 
 We use the Wilms tumor dataset from TARGET cancer project as a example for imputing RNA-seq data using DNA methylation data. Note that the RNA-seq data should be quantified as RSEM estimated read counts, since we pretrained the neural network with the RNA-seq data of RNASeqV2_RSEM. The pretrained model with other quantification, such as readcounts, TPM, will be provided later.
 
+The *pretrained model, example datasets (Wilms tumor), quantiles_DNA(RNA)_TCGA_RSEM.csv reference_distribution_DNA(RNA)_TCGA.RData* can be downloaded from Synapse with ID: [syn21438134](https://www.synapse.org/#!Synapse:syn21438134).
+
 # Usage
 ### quantile normalization
 quantile_normalization_process.R is used to remove technical variabilities between TCGA and the dataset (outside TCGA) you want to impute: specifically, the TCGA data is considered as reference to normalize the your dataset into the same distribution.  
@@ -17,9 +19,9 @@ quantile_normalization_process.R is used to remove technical variabilities betwe
 "reference_distribution_DNA_TCGA.RData" and "reference_distribution_RNA_TCGA.RData" are two processed files using funciton "normalize.quantiles.determine.target" in R package "preprocessCore". They can be loaded directly as reference distribution of DNA methylation and RNA-seq data from TCGA.
 
 ### To run script and sample dataset:
-python TDimpute_without_transfer.py GPU_index cancer_name full_dataset_path imputed_dataset_path
+python TDimpute.py GPU_index cancer_name full_dataset_path imputed_dataset_path
 
-In the script TDimpute.py, RNA_DNA_combine.csv is a 33-cancer dataset downloaded from TCGA including gene expression and DNA methylation data.
+
 
 
 
