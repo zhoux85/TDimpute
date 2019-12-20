@@ -4,6 +4,7 @@ import numpy as np
 import time
 import os
 
+
 def get_next_batch(dataset1, batch_size_1, step, ind):
     start = step * batch_size_1
     end = ((step + 1) * batch_size_1)
@@ -18,13 +19,13 @@ def train(drop_prob, source_data, dataset_train, dataset_test, normal_scale, sav
     input_image = tf.placeholder(tf.float32, batch_shape_input, name='input_image')
     is_training = tf.placeholder(tf.bool)
     scale = 0.
-    with tf.variable_scope('autoencoder') as scope:
+    with tf.variable_scope('FCN') as scope:
         fc_1 = tf.layers.dense(inputs=input_image, units=4000,
                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=scale))
         fc_1_out = tf.nn.sigmoid(fc_1)
         fc_1_dropout = tf.layers.dropout(inputs=fc_1_out, rate=drop_prob, training=is_training)
         fc_2_dropout = tf.layers.dense(inputs=fc_1_dropout, units=RNA_size)  # 46744
-        fc_2_out = tf.nn.sigmoid(fc_2_dropout)
+        fc_2_out = tf.nn.sigmoid(fc_2_dropout)  # fc_2_dropout #
         reconstructed_image = fc_2_out  # fc_2_dropout
 
     original = tf.placeholder(tf.float32, batch_shape_output, name='original')
@@ -188,87 +189,74 @@ import getopt
 import sys
 print(sys.argv)
 
-# datadir = sys.argv[1] #e.g.,'/data0/zhoux'
-os.environ["CUDA_VISIBLE_DEVICES"] = sys.argv[1]
-df = np.loadtxt(datadir+'/RNA_DNA_combine.csv', delimiter=',',skiprows=1, usecols=(range(1, 46745)))
-col = pd.read_csv(datadir+'/RNA_DNA_combine.csv', delimiter=',',header = None, nrows=1)
-columns_ind = col.values[0,1:]
-print(columns_ind.shape)
-rows_ind = np.loadtxt(datadir+'/RNA_DNA_combine.csv', delimiter=',',skiprows=1, usecols=0, dtype=np.str)  #shape = (8856, 288050)
-print(rows_ind.shape)
-RNA_DNA_txt = pd.DataFrame(df, index=rows_ind.reshape(1,8856)[0], columns =columns_ind.reshape(1,46744)[0])
+os.environ["CUDA_VISIBLE_DEVICES"] = '0' #sys.argv[1]
+pancancer_dat_path_DNA = sys.argv[1]
+pancancer_dat_path_RNA = sys.argv[2]
+original_dat_path_DNA = sys.argv[3]
+original_dat_path_RNA = sys.argv[4]
+imputed_dataset_path = sys.argv[5]
 
-cancer_names = [sys.argv[2]] #smaple size greater than 200
-# cancer_names = ['LUSC', 'KIRC', 'CESC', 'STAD', 'SARC', 'COAD','KIRP', 'LUAD', 'BLCA', 'BRCA','HNSC','LGG_','PRAD','THCA','SKCM', 'LIHC']
-full_dataset_path = sys.argv[3]
-imputed_dataset_path = sys.argv[4]
-RNA_size = 19027
-DNA_size = 27717
+DNA_target = pd.read_csv(original_dat_path_DNA, delimiter=',',index_col=0, header=0)
+DNA_TCGA = pd.read_csv(pancancer_dat_path_DNA, delimiter=',',index_col=0, header=0)
+
+RNA_target = pd.read_csv(original_dat_path_RNA, delimiter=',', index_col=0, header=0)
+RNA_TCGA = pd.read_csv(pancancer_dat_path_RNA, delimiter=',', index_col=0, header=0)
+
+DNA_target.index = [x[:19] for x in DNA_target.index.values]
+RNA_target.index = [x[:19] for x in RNA_target.index.values]
+cancer_target = pd.merge(RNA_target, DNA_target, left_index=True, right_index=True, how = 'inner')
+cancer_TCGA = pd.merge(RNA_TCGA, DNA_TCGA, left_index=True, right_index=True, how = 'inner')
+
+RNA_size = RNA_target.shape[1]
+DNA_size = DNA_target.shape[1]
+
+print('example dataset size:', cancer_target.shape, ' pancancer dataset size: ', cancer_TCGA.shape)
+normal_scale = np.max(np.max(cancer_TCGA.iloc[:, :RNA_size]))+0.001
+
+aa = np.concatenate((cancer_TCGA.values[:, :RNA_size] / normal_scale, cancer_TCGA.values[:, RNA_size:]),  axis=1)
+cancer_TCGA = pd.DataFrame(aa, index=cancer_TCGA.index, columns=cancer_TCGA.columns)
+
+aa = np.concatenate((cancer_target.values[:, :RNA_size] / normal_scale, cancer_target.values[:, RNA_size:]), axis=1)
+cancer_target = pd.DataFrame(aa, index=cancer_target.index, columns=cancer_target.columns)
 
 sample_size = 5
-loss_list = np.zeros([16, 5, sample_size]);
-loss_summary = np.zeros([16, 5])
-loss_list_pretrain = np.zeros([16, 5, sample_size]);
-loss_summary_pretrain = np.zeros([16, 5])
-cancer_c = 0
+loss_list = np.zeros([5, sample_size])
+loss_list_pretrain = np.zeros([5, sample_size])
+perc = 0
+sample_size = 5
+save_ckpt = True
+for missing_perc in [0.5]:  # [0.1, 0.3, 0.5, 0.7]: #
+    for sample_count in range(1, sample_size + 1):
+        ## train/test data split
+        train_data = cancer_target.sample(frac = (1-missing_perc), random_state=sample_count, axis=0, replace=False)
+        test_data = cancer_target[~cancer_target.index.isin(train_data.index)]
+        new_dataset = pd.concat([test_data, train_data], axis=0)             
+        train_data = train_data.values
+        test_data = test_data.values
+        print('train datasize:', train_data.shape[0], ' test datasize: ', test_data.shape[0]) 
 
-for cancertype in cancer_names:
-    perc = 0
-    save_ckpt = True #for each cancer, only one general model trained on 32 cancer datasets need to be saved
-    for missing_perc in [0.1,0.3,0.5,0.7,0.9]:
-        for sample_count in range(1, sample_size + 1):
-            # shuffle_cancer = pd.read_csv(datadir+'/bootstrap_cancer_V1/' + cancertype + str(int(missing_perc * 100)) + '_' + str(
-            #         sample_count) + '.csv', delimiter=',', index_col=0, header=0)
-            shuffle_cancer = pd.read_csv(full_dataset_path, delimiter=',', index_col=0, header=0)
+        lr = 0.0001
+        drop_prob = 0.
+        batch_shape_input = (None, DNA_size)
+        batch_shape_output = (None, RNA_size)
+        tf.reset_default_graph()
+        loss_val_list_train, loss_val_list_test, loss_test, loss_test_pretrain, reconstruct = train(drop_prob,
+                                                                                                    cancer_TCGA.values,
+                                                                                                    train_data,
+                                                                                                    test_data,
+                                                                                                    normal_scale,
+                                                                                                    sav=save_ckpt,
+                                                                                                    checkpoint_file="./checkpoints/ref_general_model_quantiles.ckpt")
 
-            print('name:', cancertype, ' missing rate:', missing_perc, ' data size:',shuffle_cancer.shape)
-            ########################Create set for training and testing
-            ## 16.5 is for gene expression normalization // linearly scaled to [0, 1], the same as the DNA methylation data (beta values)
-			normal_scale = 16.5
-            aa = np.concatenate((shuffle_cancer.values[:, :RNA_size] / normal_scale, shuffle_cancer.values[:, RNA_size:]), axis=1)
-            shuffle_cancer = pd.DataFrame(aa, index=shuffle_cancer.index, columns=shuffle_cancer.columns)
-            RDNA = shuffle_cancer.values
-            test_data = RDNA[0:int(RDNA.shape[0] * missing_perc), :]
-            train_data = RDNA[int(RDNA.shape[0] * missing_perc):, :]
-            print('train datasize:', train_data.shape[0], ' test datasize: ', test_data.shape[0])
+        save_ckpt = False
+        imputed_data = np.concatenate([reconstruct * normal_scale, train_data[:, :RNA_size] * normal_scale], axis=0)
+        RNA_txt = pd.DataFrame(imputed_data[:, :RNA_size], index=new_dataset.index, columns=new_dataset.columns[:RNA_size])
+        # RNA_txt.to_csv(datadir+'/filled_data/TDimpute_'+cancertype+str(missing_perc*100)+'_'+str(sample_count)+'_quantiles.csv')
+        RNA_txt.to_csv(imputed_dataset_path+'/TDimpute_WT_'+str(missing_perc*100)+'_'+str(sample_count)+'.csv')
 
-            ## 32 cancer datasets are combined as source domain and the remaining one cancer is considered as target domain.
-            source_data = RNA_DNA_txt[~RNA_DNA_txt.index.isin(shuffle_cancer.index)]  # bool index, e.g. df[df.A>0]
-            aa = np.concatenate((source_data.values[:, :RNA_size] / normal_scale, source_data.values[:, RNA_size:]), axis=1)
-            source_data = pd.DataFrame(aa, index=source_data.index, columns=source_data.columns)
-
-            lr = 0.0001  # learning_rate = 0.1
-            feature_size = RDNA.shape[1]  # 10595 #17176 #(8856, 109995)
-            drop_prob = 0.
-            batch_shape_input = (None, DNA_size)  # (128, 11853)
-            batch_shape_output = (None, RNA_size)
-            tf.reset_default_graph()
-            loss_val_list_train, loss_val_list_test, loss_test,loss_test_pretrain, reconstruct = train(drop_prob, source_data.values, train_data, test_data,
-                                                                                    normal_scale, sav=save_ckpt, checkpoint_file=datadir +"/checkpoints/general_model_for_"+ cancertype+'.ckpt')
-
-            save_ckpt = False
-            imputed_data = np.concatenate([reconstruct*normal_scale, train_data[:, :RNA_size]*normal_scale], axis=0)
-            RNA_txt = pd.DataFrame(imputed_data[:, :RNA_size], index=shuffle_cancer.index,
-                                   columns=shuffle_cancer.columns[:RNA_size])
-            #RNA_txt.to_csv(datadir+'/imputed_data/TDimpute_'+cancertype+str(missing_perc*100)+'_'+str(sample_count)+'.csv')
-            RNA_txt.to_csv(imputed_dataset_path)
-
-            loss_list[cancer_c, perc, sample_count - 1] = loss_test  # loss_val_list_test[-1]
-            loss_list_pretrain[cancer_c, perc, sample_count - 1] = loss_test_pretrain  # loss_val_list_test[-1]
-        perc = perc + 1
-    np.set_printoptions(precision=3)
-    print(np.array([np.mean(loss_list[cancer_c, i, :]) for i in range(0, 5)]))
-    print(np.array([np.mean(loss_list_pretrain[cancer_c, i, :]) for i in range(0, 5)]))
-    loss_summary[cancer_c, :] = np.array([np.mean(loss_list[cancer_c, i, :]) for i in range(0, 5)])
-    loss_summary_pretrain[cancer_c, :] = np.array([np.mean(loss_list_pretrain[cancer_c, i, :]) for i in range(0, 5)])
-    cancer_c = cancer_c + 1
-
-# print(loss_list)
-print('RMSE by cancer (averaged by sampling times):')
-print(loss_summary)
-print(loss_summary_pretrain)
-
-
-
-
-
+        loss_list[perc, sample_count - 1] = loss_test
+        loss_list_pretrain[perc, sample_count - 1] = loss_test_pretrain 
+    perc = perc + 1
+np.set_printoptions(precision=3)
+print(np.array([np.mean(loss_list[i, :]) for i in range(0, 5)]))
+print(np.array([np.mean(loss_list_pretrain[i, :]) for i in range(0, 5)]))
