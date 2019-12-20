@@ -8,11 +8,14 @@ python 3.6.5
 preprocessCore 1.48.0
 
 # Data preparation
-RNA-seq data (UNC IlluminaHiSeq_RNASeqV2_RSEM), DNA methylation data (JHU-USC HumanMethylation450), downloaded from TCGA.
+``` quantiles_DNA(RNA)_TCGA_RSEM.csv ```
+In the experiments, we use RNA-seq data (UNC IlluminaHiSeq_RNASeqV2_RSEM), DNA methylation data (JHU-USC HumanMethylation450), and their corresponding clinical information with follow-up from TCGA.
 
 We use the Wilms tumor dataset from TARGET cancer project as a example for imputing RNA-seq data using DNA methylation data. Note that the RNA-seq data should be quantified as RSEM estimated read counts, since we pretrained the neural network with the RNA-seq data of RNASeqV2_RSEM. The pretrained model with other quantification, such as readcounts, TPM, will be provided later.
 
-The *pretrained model, example datasets (Wilms tumor), quantiles_DNA(RNA)_TCGA_RSEM.csv reference_distribution_DNA(RNA)_TCGA.RData* can be downloaded from Synapse with ID: [syn21438134](https://www.synapse.org/#!Synapse:syn21438134).
+The *pretrained model, example datasets (Wilms tumor), quantiles_DNA(RNA)_TCGA_RSEM.csv reference_distribution_DNA(RNA)_TCGA.RData* 
+
+All the datasets above can be downloaded from Synapse with ID: [syn21438134](https://www.synapse.org/#!Synapse:syn21438134).
 
 # Usage
 ### quantile normalization
